@@ -69,6 +69,10 @@ def _member(*, wait: float) -> str:
 
 
 def _monitor(path: Path, command: str) -> None:
+    if sys.platform == "win32":
+        # Typeshed declares no AF_UNIX for Windows; this branch is what lets the Windows type
+        # check see the rest as unreachable. The module never runs there (macOS skipif below).
+        raise RuntimeError("the QEMU monitor socket is only driven on macOS")
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
         sock.connect(str(path))
         sock.sendall(command.encode("ascii") + b"\n")

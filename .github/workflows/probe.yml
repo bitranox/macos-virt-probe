@@ -63,7 +63,7 @@ jobs:
         # vmenet port as a member and serves DHCP itself. The watchers start on the
         # member port, then the guest is resumed and its network ROM asks for an address.
         set +e -u
-        python3 -m venv /tmp/v && /tmp/v/bin/pip install -q ipscout==2.5.3
+        python3 -m venv /tmp/v && /tmp/v/bin/pip install -q ipscout==2.5.4
         mac=00:00:5e:00:53:10
         if [ "$(sysctl -n kern.hv_support)" = "1" ]; then accel=hvf; else accel=tcg; fi
         echo "accel=$accel"
