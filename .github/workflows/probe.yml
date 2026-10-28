@@ -54,3 +54,45 @@ jobs:
         brew list coreutils > /dev/null 2>&1 || brew install coreutils
         attempt tcg-control -accel tcg -cpu max
         attempt hvf -accel hvf -cpu host
+
+    - name: Guest DHCP behind a vmnet bridge
+      shell: bash
+      run: |
+        # A paused x86 guest on vmnet-shared: macOS makes bridge100, adds the guest's
+        # vmenet port as a member and serves DHCP itself. The watchers start on the
+        # member port, then the guest is resumed and its network ROM asks for an address.
+        set +e -u
+        python3 -m venv /tmp/v && /tmp/v/bin/pip install -q ipscout==2.5.3
+        mac=00:00:5e:00:53:10
+        if [ "$(sysctl -n kern.hv_support)" = "1" ]; then accel=hvf; else accel=tcg; fi
+        echo "accel=$accel"
+        sudo gtimeout 150 qemu-system-x86_64 -accel "$accel" -m 256 -S -display none -serial none \
+          -monitor unix:/tmp/qmon.sock,server,nowait \
+          -netdev vmnet-shared,id=n0 -device virtio-net-pci,netdev=n0,mac="$mac" -boot n \
+          > /tmp/qemu.log 2>&1 &
+        member=""
+        for _ in $(seq 1 30); do
+          member=$(ifconfig bridge100 2>/dev/null | awk '/member:/ {print $2; exit}')
+          [ -n "$member" ] && break
+          sleep 1
+        done
+        echo "member=$member"
+        ifconfig bridge100
+        cat /tmp/qemu.log
+        if [ -z "$member" ]; then echo "RESULT no-member"; exit 0; fi
+        sudo gtimeout 70 tcpdump -n -e -i "$member" port 67 or port 68 > /tmp/tcpdump.log 2>&1 &
+        sudo /tmp/v/bin/ipscout --json observe-dhcp "$mac" --interface "$member" --timeout 60 --settle 5 \
+          > /tmp/observe.json 2> /tmp/observe.err &
+        observer=$!
+        sleep 3
+        printf 'cont\n' | sudo nc -U /tmp/qmon.sock > /dev/null
+        wait "$observer"
+        echo "RESULT observe rc=$?"
+        cat /tmp/observe.json /tmp/observe.err
+        sleep 2
+        echo "--- tcpdump on $member"
+        cat /tmp/tcpdump.log
+        echo "--- bridge refusal"
+        sudo /tmp/v/bin/ipscout --json observe-dhcp "$mac" --interface bridge100 --timeout 5
+        echo "RESULT bridge rc=$?"
+        printf 'quit\n' | sudo nc -U /tmp/qmon.sock > /dev/null
