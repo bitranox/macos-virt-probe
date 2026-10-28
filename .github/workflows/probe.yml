@@ -33,7 +33,9 @@ jobs:
     - name: Boot attempts
       shell: bash
       run: |
-        set -u
+        # GitHub runs `shell: bash` with -e, and a guest that starts ends at the
+        # timeout's 124: without +e the control's success ends the step.
+        set +e -u
         if [ "$(uname -m)" = "arm64" ]; then
           qemu=(qemu-system-aarch64 -machine virt -m 256 -display none -serial none -monitor none)
         else
