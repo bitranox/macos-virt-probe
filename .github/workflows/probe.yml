@@ -18,6 +18,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     steps:
+    - uses: actions/checkout@v4
     - name: Facts
       run: |
         sw_vers
@@ -99,3 +100,6 @@ jobs:
         sudo /tmp/v/bin/ipscout --json observe-dhcp "$mac" --interface bridge100 --timeout 5
         echo "RESULT bridge rc=$?"
         printf 'quit\n' | sudo nc -U /tmp/qmon.sock > /dev/null
+    - name: ipscout live test
+      shell: bash
+      run: "set +e\n/tmp/v/bin/pip install -q pytest\nsudo IPSCOUT_HOST_WRITE_TESTS=1 PATH=\"$PATH\" /tmp/v/bin/python -m pytest -v -rs -p no:cacheprovider test_dhcp_macos_vmnet_live.py\necho \"RESULT pytest rc=$?\"\n"
