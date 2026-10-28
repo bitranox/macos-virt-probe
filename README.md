@@ -2,7 +2,7 @@
 
 A throwaway probe: can a GitHub-hosted macOS runner start a hardware-accelerated guest VM?
 
-The `probe` workflow (manual dispatch) runs on the free macOS runners, Apple Silicon and Intel.
+The `probe` workflow (on a push to `main`, or by manual dispatch) runs on the free macOS runners, Apple Silicon and Intel.
 It prints the runner's hypervisor flags (`kern.hv_support`, `kern.hv_vmm_present`), then starts
 QEMU twice for 20 seconds each: once with software emulation (`-accel tcg`), the control that must
 keep running until the timeout, and once with Apple's Hypervisor.framework (`-accel hvf`). A guest
