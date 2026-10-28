@@ -1,0 +1,51 @@
+name: probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-latest, macos-26, macos-15-intel, macos-26-intel]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - name: Facts
+        run: |
+          sw_vers
+          echo "arch=$(uname -m)"
+          echo "hv_support=$(sysctl -n kern.hv_support 2>&1)"
+          echo "hv_vmm_present=$(sysctl -n kern.hv_vmm_present 2>&1)"
+          sysctl -n machdep.cpu.brand_string 2>&1 || true
+          sysctl hw.model 2>&1 || true
+
+      - name: Install QEMU
+        run: brew install qemu
+
+      - name: Boot attempts
+        shell: bash
+        run: |
+          set -u
+          if [ "$(uname -m)" = "arm64" ]; then
+            qemu=(qemu-system-aarch64 -machine virt -m 256 -display none -serial none -monitor none)
+          else
+            qemu=(qemu-system-x86_64 -m 256 -display none -serial none -monitor none)
+          fi
+          attempt() {
+            local label=$1; shift
+            local start=$SECONDS
+            # A guest that starts runs until the timeout kills it (124); a refused
+            # accelerator exits at once with its own error.
+            gtimeout 20 "${qemu[@]}" "$@" > "$label.log" 2>&1
+            local rc=$?
+            echo "RESULT $label rc=$rc seconds=$((SECONDS - start))"
+            sed -n '1,15p' "$label.log"
+          }
+          brew list coreutils > /dev/null 2>&1 || brew install coreutils
+          attempt tcg-control -accel tcg -cpu max
+          attempt hvf -accel hvf -cpu host
