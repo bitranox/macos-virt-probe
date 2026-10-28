@@ -92,6 +92,24 @@ def _leased_address(mac: str, *, since: float) -> str:
     return ""
 
 
+def _await_lease(mac: str, *, since: float, wait: float) -> str:
+    # The capture answers on the OFFER; bootpd records the lease only on the ACK that
+    # follows, which an emulated (tcg) guest can send seconds after the capture has settled.
+    deadline = time.monotonic() + wait
+    while time.monotonic() < deadline:
+        leased = _leased_address(mac, since=since)
+        if leased:
+            return leased
+        time.sleep(0.5)
+    return ""
+
+
+def _leases_report(since: float) -> str:
+    if not _LEASES.exists():
+        return f"{_LEASES} does not exist"
+    return f"{_LEASES} mtime {_LEASES.stat().st_mtime:.1f}, resumed {since:.1f}:\n{_LEASES.read_text(encoding='utf-8', errors='replace')}"
+
+
 @pytest.fixture
 def guest(tmp_path: Path) -> Iterator[tuple[str, Path]]:
     """Start the paused guest and yield its member port and monitor socket; stop it however the test ends."""
@@ -134,8 +152,8 @@ def test_the_guest_member_port_shows_a_booting_guest_its_address(guest: tuple[st
         offered = session.result()
 
     assert offered, f"nothing was offered to the guest on {member}"
-    leased = _leased_address(_GUEST_MAC, since=resumed - 1.0)
-    assert leased, "bootpd recorded no lease, so no real handshake was watched"
+    leased = _await_lease(_GUEST_MAC, since=resumed - 1.0, wait=30.0)
+    assert leased, f"bootpd recorded no lease, so no real handshake was watched; {_leases_report(resumed - 1.0)}"
     assert leased in offered
 
 

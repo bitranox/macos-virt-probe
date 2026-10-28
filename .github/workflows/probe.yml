@@ -102,4 +102,10 @@ jobs:
         printf 'quit\n' | sudo nc -U /tmp/qmon.sock > /dev/null
     - name: ipscout live test
       shell: bash
-      run: "set +e\n/tmp/v/bin/pip install -q pytest\nsudo IPSCOUT_HOST_WRITE_TESTS=1 PATH=\"$PATH\" /tmp/v/bin/python -m pytest -v -rs -p no:cacheprovider test_dhcp_macos_vmnet_live.py\necho \"RESULT pytest rc=$?\"\n"
+      run: |
+        set +e
+        /tmp/v/bin/pip install -q pytest
+        for round in 1 2 3; do
+          sudo IPSCOUT_HOST_WRITE_TESTS=1 PATH="$PATH" /tmp/v/bin/python -m pytest -v -rs -p no:cacheprovider test_dhcp_macos_vmnet_live.py
+          echo "RESULT pytest round=$round rc=$?"
+        done
