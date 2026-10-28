@@ -80,7 +80,9 @@ jobs:
         ifconfig bridge100
         cat /tmp/qemu.log
         if [ -z "$member" ]; then echo "RESULT no-member"; exit 0; fi
-        sudo gtimeout 70 tcpdump -n -e -i "$member" port 67 or port 68 > /tmp/tcpdump.log 2>&1 &
+        # -l: a redirected tcpdump buffers its output until it exits.
+        sudo gtimeout 70 tcpdump -l -n -e -i "$member" port 67 or port 68 > /tmp/tcpdump.log 2>&1 &
+        sniffer=$!
         sudo /tmp/v/bin/ipscout --json observe-dhcp "$mac" --interface "$member" --timeout 60 --settle 5 \
           > /tmp/observe.json 2> /tmp/observe.err &
         observer=$!
@@ -89,7 +91,8 @@ jobs:
         wait "$observer"
         echo "RESULT observe rc=$?"
         cat /tmp/observe.json /tmp/observe.err
-        sleep 2
+        sudo kill -INT "$sniffer"
+        wait "$sniffer"
         echo "--- tcpdump on $member"
         cat /tmp/tcpdump.log
         echo "--- bridge refusal"
